@@ -1,0 +1,12 @@
+__pycache__/
+.spyproject/
+output/
+archive/
+risk_db/
+.git
+.pylint.d/
+.spyproject/
+.env
+data/
+assets/
+venv/

@@ -1,0 +1,7 @@
+dash>=2.14.0
+pandas>=2.0.0
+ydata-profiling>=4.6.0
+sweetviz>=2.2.1
+vizro-ai>=0.1.0
+python-dotenv>=1.0.0
+plotly>=5.18.0 
