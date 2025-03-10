@@ -89,7 +89,7 @@ def execute_sql_query(
 
     # Convert params to appropriate format
     if isinstance(params, dict):
-        if config.query_param_replace_mode == 'named':
+        if config.query_param_replace_mode:
             for param, value in params.items():
                 query = query.replace(f"'{param}'", f"'{value}'")
             params = []
