@@ -3,7 +3,8 @@ Layout components for the Dash application.
 """
 
 from dash import html, dcc, dash_table
-from db_utils import queries, max_params
+from db_utils import load_queries, get_params
+from config import Config
 
 def create_sidebar_section(title: str, children: list) -> html.Div:
     """Create a styled sidebar section."""
@@ -20,8 +21,7 @@ def create_button(text: str, id: str, className: str = '') -> html.Button:
     return html.Button(
         text,
         id=id,
-        n_clicks=0,
-        className=f'w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 {className}'
+        className=f'px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 {className}'
     )
 
 def create_input(id: dict, placeholder: str = '', className: str = '') -> dcc.Input:
@@ -29,337 +29,285 @@ def create_input(id: dict, placeholder: str = '', className: str = '') -> dcc.In
     return dcc.Input(
         id=id,
         type='text',
-        className=f'w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 {className}',
-        placeholder=placeholder
+        placeholder=placeholder,
+        className=f'w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 {className}'
     )
 
-def create_layout() -> html.Div:
+def create_layout(config: Config) -> html.Div:
     """
-    Create the main layout for the application.
+    Create the main application layout.
     
+    Args:
+        config (Config): The application configuration instance.
+        
     Returns:
         html.Div: The main application layout.
     """
-    return html.Div([
-        # Stores
-        dcc.Store(id='last-query-store', data={'query': '', 'param_values': [],'query_name':''}),
-        dcc.Store(id='dataframe-store', data=None),
-        
-        # Main Content
-        html.Div(
-            className='min-h-screen bg-gray-100',
-            children=[
-                # Navigation Bar
-                html.Nav(
-                    className='bg-white shadow-sm',
-                    children=[
-                        html.Div(
-                            className='px-4',
-                            children=[
-                                html.Div(
-                                    className='flex justify-between h-16',
-                                    children=[
-                                        html.Div(
-                                            className='flex',
-                                            children=[
-                                                html.Div(
-                                                    className='flex-shrink-0 flex items-center',
-                                                    children=[
-                                                        html.H1('Query Dashboard', className='text-xl font-bold text-gray-800')
-                                                    ]
-                                                )
-                                            ]
-                                        )
-                                    ]
-                                )
-                            ]
-                        )
-                    ]
-                ),
-                
-                # Content Container
-                html.Div(
-                    className='flex',
-                    children=[
-                        # Sidebar
-                        html.Div(
-                            className='w-80 min-h-screen bg-gray-50 shadow-sm p-6',
-                            children=[
-                                # Query Selection
-                                create_sidebar_section(
-                                    "Select Query",
-                                    [
-                                        dcc.Dropdown(
-                                            id='query-selector',
-                                            options=[{'label': k, 'value': k} for k in queries.keys()],
-                                            placeholder='Select a query',
-                                            className='mb-4'
-                                        )
-                                    ]
-                                ),
-                                
-                                # Parameters
-                                create_sidebar_section(
-                                    "Parameters",
-                                    [
-                                        html.Div(
-                                            id='parameter-inputs',
-                                            children=[
-                                                html.Div(
-                                                    id={'type': 'param-div', 'index': i},
-                                                    className='mb-4',
-                                                    children=[
-                                                        html.Label(
-                                                            id={'type': 'param-label', 'index': i},
-                                                            className='block text-sm font-medium text-gray-700 mb-1'
-                                                        ),
-                                                        html.Div(
-                                                            id={'type': 'param-input-container', 'index': i},
-                                                            children=[
-                                                                dcc.Input(
-                                                                    id={'type': 'param', 'index': i},
-                                                                    type='text',
-                                                                    className='w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500',
-                                                                    style={'display': 'none'}
-                                                                ),
-                                                                dcc.DatePickerSingle(
-                                                                    id={'type': 'param-date', 'index': i},
-                                                                    className='w-full',
-                                                                    style={
-                                                                        'display': 'none',
-                                                                        'zIndex': 9999
-                                                                    },
-                                                                    date=None,
-                                                                    display_format='YYYY-MM-DD',
-                                                                    placeholder='Select a date...',
-                                                                    clearable=True,
-                                                                    with_portal=True,
-                                                                    day_size=35
-                                                                )
-                                                            ]
-                                                        )
-                                                    ],
-                                                    style={'display': 'none'}
-                                                )
-                                                for i in range(max_params)
-                                            ]
-                                        ),
-                                        create_button('Run Query', 'run-query', 'mt-4')
-                                    ]
-                                ),
-                                
-                                # Analysis Tools
-                                create_sidebar_section(
-                                    "Analysis Tools",
-                                    [
-                                        html.Div(
-                                            className='mb-4',
-                                            children=[
-                                                html.Label(
-                                                    'Custom Report',
-                                                    className='block text-sm font-medium text-gray-700 mb-1'
-                                                ),
-                                                create_button('Generate Report', 'run-report')
-                                            ]
-                                        ),
-                                        html.Div(
-                                            className='mb-4',
-                                            children=[
-                                                html.Label(
-                                                    'YData Profiling',
-                                                    className='block text-sm font-medium text-gray-700 mb-1'
-                                                ),
+    # Load queries for this configuration
+    queries_dict = load_queries(config)
+    max_params = max(len(query['params']) for query in queries_dict.values()) if queries_dict else 0
+    
+    return html.Div(
+        className='flex h-screen bg-gray-100',
+        children=[
+            # Stores for state management
+            dcc.Store(id='last-query-store'),
+            dcc.Store(id='dataframe-store'),
+            
+            # Main container
+            html.Div(
+                className='flex flex-col w-full',
+                children=[
+                    # Navigation bar
+                    html.Nav(
+                        className='bg-white shadow-sm',
+                        children=[
+                            html.Div(
+                                className='px-4',
+                                children=[
+                                    html.Div(
+                                        className='flex justify-between h-16',
+                                        children=[
+                                            html.Div(
+                                                className='flex',
+                                                children=[
+                                                    html.Div(
+                                                        className='flex-shrink-0 flex items-center',
+                                                        children=[
+                                                            html.H1('Query Dashboard', className='text-xl font-bold text-gray-800')
+                                                        ]
+                                                    )
+                                                ]
+                                            )
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    ),
+                    
+                    # Content Container
+                    html.Div(
+                        className='flex',
+                        children=[
+                            # Sidebar
+                            html.Div(
+                                className='w-80 min-h-screen bg-gray-50 shadow-sm p-6',
+                                children=[
+                                    # Query Selection
+                                    create_sidebar_section(
+                                        "Select Query",
+                                        [
+                                            dcc.Dropdown(
+                                                id='query-selector',
+                                                options=[{'label': k, 'value': k} for k in queries_dict.keys()],
+                                                placeholder='Select a query...',
+                                                className='mb-4'
+                                            ),
+                                            html.Div(id='parameter-inputs', className='space-y-4'),
+                                            create_button('Run Query', 'run-query', 'mt-4 w-full')
+                                        ]
+                                    ),
+                                    
+                                    # Custom SQL
+                                    create_sidebar_section(
+                                        "Custom SQL",
+                                        [
+                                            dcc.Textarea(
+                                                id='custom-sql-input',
+                                                placeholder='Enter custom SQL...',
+                                                className='w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500',
+                                                style={'height': '150px'}
+                                            ),
+                                            create_button('Run Custom SQL', 'run-custom-sql', 'mt-4 w-full')
+                                        ]
+                                    ),
+                                    
+                                    # Reports
+                                    create_sidebar_section(
+                                        "Reports",
+                                        [
+                                            create_button('Generate Report', 'run-report', 'mb-2 w-full')
+                                        ]
+                                    ),
+                                    
+                                    # Data Profiling
+                                    create_sidebar_section(
+                                        "Data Profiling",
+                                        [
+                                            html.Div([
+                                                html.Label('YData Profiling Options:', className='block mb-2'),
                                                 dcc.Checklist(
                                                     id='ydata-tsmode',
-                                                    options=[{'label': 'Enable Timeseries Mode', 'value': 'tsmode'}],
+                                                    options=[
+                                                        {'label': ' Time Series Mode', 'value': 'tsmode'}
+                                                    ],
                                                     value=[],
                                                     className='mb-2'
                                                 ),
-                                                create_button('Generate Profile', 'generate-profile')
-                                            ]
-                                        ),
-                                        # Temporarily commenting out Sweetviz Report section
-                                        # html.Div(
-                                        #     className='mb-4',
-                                        #     children=[
-                                        #         html.Label(
-                                        #             'Sweetviz Report',
-                                        #             className='block text-sm font-medium text-gray-700 mb-1'
-                                        #         ),
-                                        #         create_button('Generate Sweetviz Report', 'generate-sweetviz')
-                                        #     ]
-                                        # )
-                                    ]
-                                ),
-                                
-                                # AI Tools
-                                create_sidebar_section(
-                                    "AI Tools",
-                                    [
-                                        html.Div(
-                                            className='mb-4',
-                                            children=[
-                                                html.Label(
-                                                    'VizroAI Description',
-                                                    className='block text-sm font-medium text-gray-700 mb-1'
-                                                ),
-                                                dcc.Input(
-                                                    id='user-input',
-                                                    type='text',
-                                                    placeholder='Enter your visualization description...',
-                                                    className='w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 mb-2'
-                                                ),
-                                                create_button('Generate Plot', 'generate-plot')
-                                            ]
-                                        ),
-                                        # Temporarily commenting out Pandas AI section
-                                        # html.Div(
-                                        #     className='mb-4',
-                                        #     children=[
-                                        #         html.Label(
-                                        #             'Pandas AI Query',
-                                        #             className='block text-sm font-medium text-gray-700 mb-1'
-                                        #         ),
-                                        #         dcc.Input(
-                                        #             id='pandas-ai-input',
-                                        #             type='text',
-                                        #             placeholder='Enter your question...',
-                                        #             className='w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 mb-2'
-                                        #         ),
-                                        #         create_button('Run Pandas AI', 'run-pandas-ai')
-                                        #     ]
-                                        # )
-                                    ]
-                                ),
-                                
-                                # Custom SQL
-                                create_sidebar_section(
-                                    "Custom SQL Query",
-                                    [
-                                        dcc.Textarea(
-                                            id='custom-sql-input',
-                                            placeholder='Enter your custom SQL query here...',
-                                            className='w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 mb-2',
-                                            style={'height': '100px'}
-                                        ),
-                                        create_button('Run Custom SQL', 'run-custom-sql')
-                                    ]
-                                )
-                            ]
-                        ),
-                        
-                        # Main Content Area
-                        html.Div(
-                            className='flex-1 p-8',
-                            children=[
-                                html.Div(
-                                    className='bg-white rounded-lg shadow-sm p-6',
-                                    children=[
-                                        dcc.Tabs(
-                                            id='tabs',
-                                            value='data-tab',
-                                            className='mb-4',
-                                            children=[
-                                                dcc.Tab(
-                                                    label='Data',
-                                                    value='data-tab',
-                                                    className='p-4',
-                                                    selected_className='border-b-2 border-indigo-500',
-                                                    children=[
-                                                        dash_table.DataTable(
-                                                            id='query-results-table',
-                                                            style_table={'overflowX': 'auto'},
-                                                            style_cell={
-                                                                'textAlign': 'left',
-                                                                'padding': '12px 8px',
-                                                                'font-size': '14px'
-                                                            },
-                                                            style_header={
-                                                                'backgroundColor': '#f3f4f6',
-                                                                'fontWeight': 'bold',
-                                                                'border': 'none'
-                                                            },
-                                                            style_data={
-                                                                'border': 'none',
-                                                                'borderBottom': '1px solid #e5e7eb'
-                                                            }
-                                                        )
-                                                    ]
-                                                ),
-                                                dcc.Tab(
-                                                    label='Report',
-                                                    value='report-tab',
-                                                    className='p-4',
-                                                    selected_className='border-b-2 border-indigo-500',
-                                                    children=[html.Div(id='report-content')]
-                                                ),
-                                                dcc.Tab(
-                                                    label='YData Profiling',
-                                                    value='ydata-tab',
-                                                    className='p-4',
-                                                    selected_className='border-b-2 border-indigo-500',
-                                                    children=[
-                                                        html.Iframe(
-                                                            id='ydata-profile',
-                                                            style={'width': '100%', 'height': '800px', 'border': 'none'}
-                                                        )
-                                                    ]
-                                                ),
-                                                # Temporarily commenting out SweetViz tab
-                                                # dcc.Tab(
-                                                #     label='Sweetviz Profiling',
-                                                #     value='sweetviz-tab',
-                                                #     className='p-4',
-                                                #     selected_className='border-b-2 border-indigo-500',
-                                                #     children=[
-                                                #         html.Iframe(
-                                                #             id='sweetviz-profile',
-                                                #             style={'width': '100%', 'height': '800px', 'border': 'none'}
-                                                #         )
-                                                #     ]
-                                                # ),
-                                                dcc.Tab(
-                                                    label='VizroAI',
-                                                    value='vizroai-tab',
-                                                    className='p-4',
-                                                    selected_className='border-b-2 border-indigo-500',
-                                                    children=[
-                                                        dcc.Graph(id='vizroai-plot'),
-                                                        html.Pre(
-                                                            id='vizroai-code',
-                                                            className='mt-4 p-4 bg-gray-50 rounded-md font-mono text-sm'
-                                                        ),
-                                                        html.Pre(
-                                                            id='vizroai-insights',
-                                                            className='mt-4 p-4 bg-gray-50 rounded-md'
-                                                        ),
-                                                        html.Pre(
-                                                            id='vizroai-explanation',
-                                                            className='mt-4 p-4 bg-gray-50 rounded-md'
-                                                        )
-                                                    ]
-                                                ),
-                                                # Temporarily commenting out Pandas AI tab
-                                                # dcc.Tab(
-                                                #     label='Pandas AI',
-                                                #     value='pandas-ai-tab',
-                                                #     className='p-4',
-                                                #     selected_className='border-b-2 border-indigo-500',
-                                                #     children=[
-                                                #         html.Pre(
-                                                #             id='pandas-ai-response',
-                                                #             className='p-4 bg-gray-50 rounded-md'
-                                                #         )
-                                                #     ]
-                                                # )
-                                            ]
-                                        )
-                                    ]
-                                )
-                            ]
-                        )
-                    ]
-                )
-            ]
-        )
-    ]) 
+                                                create_button('Generate YData Profile', 'generate-profile', 'mb-2 w-full'),
+                                                create_button('Generate Sweetviz Report', 'generate-sweetviz', 'w-full')
+                                            ])
+                                        ]
+                                    ),
+                                    
+                                    # Vizro AI
+                                    create_sidebar_section(
+                                        "Vizro AI",
+                                        [
+                                            html.Label('What would you like to visualize?', className='block mb-2'),
+                                            dcc.Textarea(
+                                                id='user-input',
+                                                placeholder='E.g., Show me a bar chart of sales by region',
+                                                className='w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 mb-2',
+                                                style={'height': '80px'}
+                                            ),
+                                            create_button('Generate Plot', 'generate-plot', 'w-full')
+                                        ]
+                                    )
+                                ]
+                            ),
+                            
+                            # Main Content
+                            html.Div(
+                                className='flex-1 p-6',
+                                children=[
+                                    dcc.Tabs(
+                                        id='tabs',
+                                        value='data-tab',
+                                        className='mb-4',
+                                        children=[
+                                            dcc.Tab(
+                                                label='Data',
+                                                value='data-tab',
+                                                className='py-2 px-4',
+                                                selected_className='border-b-2 border-blue-500 text-blue-500',
+                                                children=[
+                                                    html.Div(
+                                                        className='overflow-x-auto',
+                                                        children=[
+                                                            dash_table.DataTable(
+                                                                id='query-results-table',
+                                                                page_size=15,
+                                                                style_table={'overflowX': 'auto'},
+                                                                style_cell={
+                                                                    'textAlign': 'left',
+                                                                    'padding': '8px',
+                                                                    'minWidth': '100px',
+                                                                    'maxWidth': '300px',
+                                                                    'whiteSpace': 'normal',
+                                                                    'overflow': 'hidden',
+                                                                    'textOverflow': 'ellipsis'
+                                                                },
+                                                                style_header={
+                                                                    'backgroundColor': 'rgb(240, 242, 245)',
+                                                                    'fontWeight': 'bold',
+                                                                    'border': '1px solid #e2e8f0'
+                                                                },
+                                                                style_data={
+                                                                    'border': '1px solid #e2e8f0'
+                                                                },
+                                                                style_data_conditional=[
+                                                                    {
+                                                                        'if': {'row_index': 'odd'},
+                                                                        'backgroundColor': 'rgb(248, 250, 252)'
+                                                                    }
+                                                                ],
+                                                                export_format='csv'
+                                                            )
+                                                        ]
+                                                    )
+                                                ]
+                                            ),
+                                            dcc.Tab(
+                                                label='Report',
+                                                value='report-tab',
+                                                className='py-2 px-4',
+                                                selected_className='border-b-2 border-blue-500 text-blue-500',
+                                                children=[
+                                                    html.Div(id='report-content')
+                                                ]
+                                            ),
+                                            dcc.Tab(
+                                                label='YData Profiling',
+                                                value='ydata-tab',
+                                                className='py-2 px-4',
+                                                selected_className='border-b-2 border-blue-500 text-blue-500',
+                                                children=[
+                                                    html.Iframe(
+                                                        id='ydata-profile',
+                                                        style={'width': '100%', 'height': 'calc(100vh - 200px)', 'border': 'none'}
+                                                    )
+                                                ]
+                                            ),
+                                            dcc.Tab(
+                                                label='Sweetviz',
+                                                value='sweetviz-tab',
+                                                className='py-2 px-4',
+                                                selected_className='border-b-2 border-blue-500 text-blue-500',
+                                                children=[
+                                                    html.Iframe(
+                                                        id='sweetviz-profile',
+                                                        style={'width': '100%', 'height': 'calc(100vh - 200px)', 'border': 'none'}
+                                                    )
+                                                ]
+                                            ),
+                                            dcc.Tab(
+                                                label='Vizro AI',
+                                                value='vizroai-tab',
+                                                className='py-2 px-4',
+                                                selected_className='border-b-2 border-blue-500 text-blue-500',
+                                                children=[
+                                                    html.Div(
+                                                        className='grid grid-cols-1 lg:grid-cols-2 gap-4',
+                                                        children=[
+                                                            html.Div(
+                                                                className='bg-white p-4 rounded shadow',
+                                                                children=[
+                                                                    html.H3('Visualization', className='text-lg font-semibold mb-2'),
+                                                                    dcc.Graph(id='vizroai-plot', style={'height': '400px'})
+                                                                ]
+                                                            ),
+                                                            html.Div(
+                                                                className='bg-white p-4 rounded shadow',
+                                                                children=[
+                                                                    html.Div([
+                                                                        html.H3('Code', className='text-lg font-semibold mb-2'),
+                                                                        html.Pre(
+                                                                            id='vizroai-code',
+                                                                            className='bg-gray-100 p-2 rounded text-sm overflow-auto',
+                                                                            style={'maxHeight': '200px'}
+                                                                        )
+                                                                    ]),
+                                                                    html.Div([
+                                                                        html.H3('Insights', className='text-lg font-semibold mb-2 mt-4'),
+                                                                        html.Pre(
+                                                                            id='vizroai-insights',
+                                                                            className='bg-gray-100 p-2 rounded text-sm overflow-auto',
+                                                                            style={'maxHeight': '200px'}
+                                                                        )
+                                                                    ]),
+                                                                    html.Div([
+                                                                        html.H3('Explanation', className='text-lg font-semibold mb-2 mt-4'),
+                                                                        html.Pre(
+                                                                            id='vizroai-explanation',
+                                                                            className='bg-gray-100 p-2 rounded text-sm overflow-auto',
+                                                                            style={'maxHeight': '200px'}
+                                                                        )
+                                                                    ])
+                                                                ]
+                                                            )
+                                                        ]
+                                                    )
+                                                ]
+                                            )
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
+    ) 

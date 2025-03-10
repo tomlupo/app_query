@@ -4,27 +4,26 @@ Database utilities module for handling SQL operations and query management.
 
 import os
 import pandas as pd
-from typing import Dict, List, Optional, Any
-from config import config
+from typing import Dict, List, Optional, Any, Union
+from config import Config
 
-def load_queries(directory: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+def load_queries(config: Config) -> Dict[str, Dict[str, Any]]:
     """
     Load SQL queries from files and extract their parameters.
     
     Args:
-        directory (Optional[str]): Directory containing SQL files. Defaults to config.queries_path.
+        config (Config): Configuration instance containing paths and settings.
     
     Returns:
         Dict[str, Dict[str, Any]]: Dictionary of queries and their parameters.
     """
-    directory = directory or config.queries_path
     queries = {}
     param_pattern = config.query_param_pattern
 
-    for filename in os.listdir(directory):
+    for filename in os.listdir(config.queries_path):
         if filename.endswith('.sql'):
             try:
-                with open(os.path.join(directory, filename), 'r') as file:
+                with open(os.path.join(config.queries_path, filename), 'r') as file:
                     query = file.read()
 
                     # Extract unique parameter names using a set
@@ -43,13 +42,35 @@ def load_queries(directory: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
                 print(f'{filename} not loaded due to error: {e}')
     return queries
 
-def execute_sql_query(query: str, params_dict: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+def get_params(queries: Dict[str, Dict[str, Any]], query_name: str) -> List[Dict[str, str]]:
+    """
+    Get parameters for a specific query.
+    
+    Args:
+        queries (Dict[str, Dict[str, Any]]): Dictionary of loaded queries.
+        query_name (str): Name of the query file.
+        
+    Returns:
+        List[Dict[str, str]]: List of parameter details.
+    """
+    return queries[query_name]['params'] if query_name in queries else []
+
+def execute_sql_query(
+    query: str, 
+    params: Union[List[Any], Dict[str, Any]], 
+    config: Config,
+    queries: Dict[str, Dict[str, Any]],
+    is_file: bool = True
+) -> pd.DataFrame:
     """
     Execute a SQL query and return the results as a DataFrame.
     
     Args:
-        query (str): SQL query to execute.
-        params_dict (Optional[Dict[str, Any]]): Dictionary of parameter names and values.
+        query (str): SQL query to execute or query filename.
+        params (Union[List[Any], Dict[str, Any]]): Query parameters as list or dict.
+        config (Config): Configuration instance for database connection.
+        queries (Dict[str, Dict[str, Any]]): Dictionary of loaded queries.
+        is_file (bool): Whether query is a filename (True) or SQL string (False).
     
     Returns:
         pd.DataFrame: Query results as a DataFrame.
@@ -59,31 +80,31 @@ def execute_sql_query(query: str, params_dict: Optional[Dict[str, Any]] = None) 
         print("Query is None or empty.")
         return pd.DataFrame()
 
-    # Modify query using params_dict
-    if params_dict is None:
-        params_dict = {}
+    # Get query from file if needed
+    if is_file:
+        if query not in queries:
+            print(f"Query file {query} not found.")
+            return pd.DataFrame()
+        query = queries[query]['query']
+
+    # Convert params to appropriate format
+    if isinstance(params, dict):
+        if config.query_param_replace_mode == 'named':
+            for param, value in params.items():
+                query = query.replace(f"'{param}'", f"'{value}'")
+            params = []
+        else:
+            params = list(params.values())
     
-    if config.query_param_replace_mode:
-        for param, value in params_dict.items():
-            query = query.replace(f"'{param}'", f"'{value}'")
-        params = []
-    else:
-        params = [v for v in params_dict.values()]
-        
     # Get connection
     conn = config.get_connection()
     
     # Execute query
     try:
         df = pd.read_sql_query(query, conn, params=params)
+        return df
     except Exception as e:
-        print(f"An error occurred: {e}")
-        df = pd.DataFrame()
+        print(f"Query execution error: {e}")
+        return pd.DataFrame()
     finally:
-        conn.close()
-    
-    return df
-
-# Load queries at module initialization
-queries = load_queries()
-max_params = max(len(query['params']) for query in queries.values()) 
+        conn.close() 
