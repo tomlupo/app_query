@@ -27,7 +27,13 @@ def create_parameter_input(param_details, index):
             html.Label(
                 f'{param_name} ({param_type})',
                 id={'type': 'param-label', 'index': index},
-                className='form-label'
+                className='form-label',
+                style={
+                    'display': 'block',
+                    'marginBottom': '5px',
+                    'fontWeight': '500',
+                    'color': '#1f2937'  # Explicit text color
+                }
             ),
             html.Div(
                 id={'type': 'param-input-container', 'index': index},
@@ -36,14 +42,21 @@ def create_parameter_input(param_details, index):
                         id={'type': 'param', 'index': index},
                         type='text',
                         className='w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500',
-                        style={'display': 'block' if param_type != 'date' else 'none'}
+                        style={
+                            'display': 'block' if param_type != 'date' else 'none',
+                            'width': '100%',
+                            'backgroundColor': 'white',
+                            'color': 'black',
+                            'borderColor': '#d1d5db'
+                        }
                     ),
                     dcc.DatePickerSingle(
                         id={'type': 'param-date', 'index': index},
                         className='w-full',
                         style={
                             'display': 'block' if param_type == 'date' else 'none',
-                            'zIndex': 9999
+                            'zIndex': 9999,
+                            'width': '100%'
                         },
                         date=None,
                         display_format='YYYY-MM-DD',
@@ -55,7 +68,10 @@ def create_parameter_input(param_details, index):
                 ]
             )
         ],
-        style={'display': 'block'}
+        style={
+            'display': 'block',
+            'marginBottom': '15px'
+        }
     )
 
 def register_callbacks(app: Dash, config: Config) -> None:
