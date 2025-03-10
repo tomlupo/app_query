@@ -147,14 +147,7 @@ def register_callbacks(app: Dash, config: Config) -> None:
             if button_id == 'run-query' and selected_query:
                 # Get parameters for the selected query
                 params = get_params(queries, selected_query)
-                param_values = []
-                for i, param in enumerate(params):
-                    if param['type'] == 'date':
-                        param_values.append(date_values[i])
-                    else:
-                        param_values.append(text_values[i])
-                
-                # Execute query with parameters
+                param_values = {param['name']: date_values[i] if param['type'] == 'date' else text_values[i] for i, param in enumerate(params)}
                 df = execute_sql_query(selected_query, param_values, config, queries)
                 
             elif button_id == 'run-custom-sql' and custom_sql:
